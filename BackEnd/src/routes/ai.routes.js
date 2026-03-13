@@ -11,3 +11,4 @@ router.get("/history", aiController.getHistory);
 router.delete("/history/:id", aiController.deleteReview);
 
 module.exports = router;
+
