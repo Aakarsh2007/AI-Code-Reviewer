@@ -26,7 +26,7 @@ function App() {
       setReview(null); 
       setActiveTab('metrics'); 
       
-      const response = await axios.post('http://localhost:3000/ai/get-review', { code, language });
+      const response = await axios.post('https://ai-code-reviewer-bice-pi.vercel.app/ai/get-review', { code, language });
       
       setReview(response.data);
       setHistory([]); 
@@ -43,7 +43,7 @@ function App() {
     setActiveTab('history');
     try {
       setLoading(true);
-      const response = await axios.get('http://localhost:3000/ai/history');
+      const response = await axios.get('https://ai-code-reviewer-bice-pi.vercel.app/ai/history');
       setHistory(response.data);
     } catch (error) {
       console.error("Error fetching history:", error);
@@ -70,7 +70,7 @@ function App() {
 
   async function deleteHistoryItem(id) {
     try {
-      await axios.delete(`http://localhost:3000/ai/history/${id}`);
+      await axios.delete(`https://ai-code-reviewer-bice-pi.vercel.app/ai/history/${id}`);
       setHistory(prev => prev.filter(item => item._id !== id));
       toast.success('Review deleted permanently.');
     } catch (error) {
