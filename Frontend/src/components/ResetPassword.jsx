@@ -14,7 +14,7 @@ export default function ResetPassword({ token }) {
       await axios.post(`https://ai-code-reviewer-bice-pi.vercel.app/auth/reset-password/${token}`, { password });
       toast.success('Password reset successfully! You can now log in.');
       setTimeout(() => {
-        window.location.href = '/'; 
+        window.location.href = '/'; // Redirects back to login screen
       }, 2000);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to reset password');

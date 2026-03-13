@@ -3,9 +3,14 @@ import { Editor, DiffEditor } from '@monaco-editor/react';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 import Auth from './components/Auth';
+import ResetPassword from './components/ResetPassword';
 import './App.css';
 
 function App() {
+  const pathname = window.location.pathname;
+  const isResetRoute = pathname.startsWith('/reset-password/');
+  const urlResetToken = isResetRoute ? pathname.split('/')[2] : null;
+
   const [token, setToken] = useState(() => localStorage.getItem('token') || null);
   const [code, setCode] = useState(() => localStorage.getItem('savedCode') || `// Paste your code here...`);
   const [language, setLanguage] = useState(() => localStorage.getItem('savedLanguage') || 'javascript');
@@ -130,6 +135,15 @@ function App() {
       { duration: 5000, id: 'delete-toast' }
     );
   };
+
+  if (urlResetToken) {
+    return (
+      <>
+        <Toaster toastOptions={{ style: { background: '#333', color: '#fff' } }} />
+        <ResetPassword token={urlResetToken} />
+      </>
+    );
+  }
 
   if (!token) {
     return (
