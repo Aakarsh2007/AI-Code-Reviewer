@@ -1,11 +1,12 @@
 const crypto = require('crypto');
 const aiService = require("../services/ai.service");
 const Review = require("../models/review.model");
-const redisClient = require("../config/redis"); 
+const redisClient = require("../config/redis");
 
 module.exports.getReview = async (req, res) => {
     try {
         const { code, language = 'javascript' } = req.body;
+        const userId = req.user.id;
 
         if (!code) {
             return res.status(400).send("Code is required");
@@ -15,10 +16,20 @@ module.exports.getReview = async (req, res) => {
         const cacheKey = `code_review:${language}:${codeHash}`;
 
         const cachedResponse = await redisClient.get(cacheKey);
-        
+
         if (cachedResponse) {
             console.log("⚡ Serving review from Redis Cache!");
-            return res.status(200).json(JSON.parse(cachedResponse));
+            const parsedResponse = JSON.parse(cachedResponse);
+            
+            const savedReview = new Review({
+                userId: userId,
+                language: language,
+                originalCode: code,
+                aiResponse: parsedResponse
+            });
+            await savedReview.save();
+            
+            return res.status(200).json(parsedResponse);
         }
 
         console.log(`🧠 Cache miss. Sending ${language} code to Groq AI...`);
@@ -26,6 +37,7 @@ module.exports.getReview = async (req, res) => {
         const aiResponse = await aiService.generateCodeReview(code, language);
 
         const savedReview = new Review({
+            userId: userId,
             language: language,
             originalCode: code,
             aiResponse: aiResponse
@@ -37,7 +49,7 @@ module.exports.getReview = async (req, res) => {
         console.log("⚡ Review cached in Redis!");
 
         res.status(200).json(aiResponse);
-        
+
     } catch (error) {
         console.error("Error in ai.controller:", error.message);
         res.status(500).send("An error occurred while communicating with the AI service or database.");
@@ -46,7 +58,8 @@ module.exports.getReview = async (req, res) => {
 
 module.exports.getHistory = async (req, res) => {
     try {
-        const history = await Review.find().sort({ createdAt: -1 });
+        const userId = req.user.id;
+        const history = await Review.find({ userId: userId }).sort({ createdAt: -1 });
         res.status(200).json(history);
     } catch (error) {
         console.error("Error fetching history:", error.message);
@@ -57,13 +70,14 @@ module.exports.getHistory = async (req, res) => {
 module.exports.deleteReview = async (req, res) => {
     try {
         const { id } = req.params;
-        
-        const deletedReview = await Review.findByIdAndDelete(id);
-        
+        const userId = req.user.id;
+
+        const deletedReview = await Review.findOneAndDelete({ _id: id, userId: userId });
+
         if (!deletedReview) {
-            return res.status(404).json({ error: "Review not found" });
+            return res.status(404).json({ error: "Review not found or unauthorized" });
         }
-        
+
         console.log(`🗑️ Deleted review: ${id}`);
         res.status(200).json({ message: "Review deleted successfully" });
     } catch (error) {
@@ -71,3 +85,4 @@ module.exports.deleteReview = async (req, res) => {
         res.status(500).send("An error occurred while deleting the review.");
     }
 };
+

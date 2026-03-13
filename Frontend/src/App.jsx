@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { Editor, DiffEditor } from '@monaco-editor/react';
 import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
+import Auth from './components/Auth';
 import './App.css';
 
 function App() {
+  const [token, setToken] = useState(() => localStorage.getItem('token') || null);
   const [code, setCode] = useState(() => localStorage.getItem('savedCode') || `// Paste your code here...`);
   const [language, setLanguage] = useState(() => localStorage.getItem('savedLanguage') || 'javascript');
   const [review, setReview] = useState(() => JSON.parse(localStorage.getItem('savedReview')) || null);
@@ -20,20 +22,33 @@ function App() {
     else localStorage.removeItem('savedReview');
   }, [review]);
 
+  function handleLogout() {
+    localStorage.removeItem('token');
+    setToken(null);
+    setHistory([]);
+    setReview(null);
+    toast.success('Logged out successfully');
+  }
+
   async function reviewCode() {
     try {
       setLoading(true);
       setReview(null); 
       setActiveTab('metrics'); 
       
-      const response = await axios.post('https://ai-code-reviewer-bice-pi.vercel.app/ai/get-review', { code, language });
+      const response = await axios.post(
+        'https://ai-code-reviewer-bice-pi.vercel.app/ai/get-review', 
+        { code, language },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       
       setReview(response.data);
       setHistory([]); 
       toast.success('Code analyzed successfully!');
     } catch (error) {
       console.error("Error fetching review:", error);
-      toast.error('Failed to get review. Make sure your backend is running!');
+      if (error.response?.status === 401) handleLogout();
+      toast.error('Failed to get review. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -43,10 +58,14 @@ function App() {
     setActiveTab('history');
     try {
       setLoading(true);
-      const response = await axios.get('https://ai-code-reviewer-bice-pi.vercel.app/ai/history');
+      const response = await axios.get(
+        'https://ai-code-reviewer-bice-pi.vercel.app/ai/history',
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       setHistory(response.data);
     } catch (error) {
       console.error("Error fetching history:", error);
+      if (error.response?.status === 401) handleLogout();
       toast.error('Failed to fetch history.');
     } finally {
       setLoading(false);
@@ -70,11 +89,15 @@ function App() {
 
   async function deleteHistoryItem(id) {
     try {
-      await axios.delete(`https://ai-code-reviewer-bice-pi.vercel.app/ai/history/${id}`);
+      await axios.delete(
+        `https://ai-code-reviewer-bice-pi.vercel.app/ai/history/${id}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       setHistory(prev => prev.filter(item => item._id !== id));
       toast.success('Review deleted permanently.');
     } catch (error) {
       console.error("Error deleting review:", error);
+      if (error.response?.status === 401) handleLogout();
       toast.error('Failed to delete review.');
     }
   }
@@ -108,6 +131,15 @@ function App() {
     );
   };
 
+  if (!token) {
+    return (
+      <>
+        <Toaster toastOptions={{ style: { background: '#333', color: '#fff' } }} />
+        <Auth setToken={setToken} />
+      </>
+    );
+  }
+
   return (
     <main>
       <Toaster toastOptions={{ style: { background: '#333', color: '#fff' } }} />
@@ -128,6 +160,12 @@ function App() {
               <option value="c">C</option>
             </select>
             <button className="new-code-btn" onClick={handleNewCode}>+ New Code</button>
+            <button 
+              onClick={handleLogout} 
+              style={{ background: '#ff5252', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginLeft: '10px' }}
+            >
+              Logout
+            </button>
           </div>
         </div>
 
