@@ -1,8 +1,8 @@
 const User = require('../models/user.model');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const redisClient = require('../config/redis');
 
 const register = async (req, res) => {
     try {
@@ -58,13 +58,12 @@ const forgotPassword = async (req, res) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const resetToken = crypto.randomBytes(32).toString('hex');
+        // Generate a 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
         
-        user.resetPasswordToken = resetToken;
-        user.resetPasswordExpires = Date.now() + 15 * 60 * 1000;
-        await user.save();
-
-        const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+        // Save OTP to Redis with a 900-second (15 minute) expiration
+        const cacheKey = `OTP:${email}`;
+        await redisClient.setEx(cacheKey, 900, otp);
 
         const transporter = nodemailer.createTransport({
             service: 'gmail',
@@ -77,44 +76,48 @@ const forgotPassword = async (req, res) => {
         const mailOptions = {
             to: user.email,
             from: process.env.EMAIL_USER,
-            subject: 'AI Code Reviewer - Password Reset',
-            text: `You requested a password reset. \n\nPlease click the link below to set a new password. This link expires in 15 minutes.\n\n${resetUrl}\n\nIf you did not request this, please ignore this email.`
+            subject: 'AI Code Reviewer - Password Reset OTP',
+            text: `Your password reset OTP is: ${otp}\n\nThis code is valid for 15 minutes. Do not share it with anyone.`
         };
 
         await transporter.sendMail(mailOptions);
-        res.status(200).json({ message: 'Password reset link sent to your email' });
+        res.status(200).json({ message: 'OTP sent to your email' });
 
     } catch (error) {
+        console.error("Forgot Password Error:", error);
         res.status(500).json({ message: 'Error sending email' });
     }
 };
 
 const resetPassword = async (req, res) => {
     try {
-        const { token } = req.params;
-        const { password } = req.body;
+        const { email, otp, password } = req.body;
 
-        const user = await User.findOne({
-            resetPasswordToken: token,
-            resetPasswordExpires: { $gt: Date.now() }
-        });
+        // Fetch the OTP from Redis
+        const cachedOtp = await redisClient.get(`OTP:${email}`);
 
-        if (!user) {
-            return res.status(400).json({ message: 'Invalid or expired token' });
+        if (!cachedOtp || cachedOtp !== otp) {
+            return res.status(400).json({ message: 'Invalid or expired OTP' });
         }
 
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Hash the new password and save it
         const salt = await bcrypt.genSalt(10);
         user.password = await bcrypt.hash(password, salt);
-        
-        user.resetPasswordToken = undefined;
-        user.resetPasswordExpires = undefined;
         await user.save();
+
+        // Delete the OTP from Redis so it can't be reused
+        await redisClient.del(`OTP:${email}`);
 
         res.status(200).json({ message: 'Password has been successfully reset' });
     } catch (error) {
+        console.error("Reset Password Error:", error);
         res.status(500).json({ message: 'Server error during password reset' });
     }
 };
 
 module.exports = { register, login, forgotPassword, resetPassword };
-
