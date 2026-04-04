@@ -1,0 +1,167 @@
+{
+  "name": "codesense-ai",
+  "displayName": "CodeSense AI — Enterprise Code Reviewer",
+  "description": "AI-powered code review, bug detection, security scanning, complexity analysis, and refactoring — directly inside VS Code.",
+  "version": "2.0.0",
+  "publisher": "codesense-ai",
+  "icon": "assets/icon.png",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/codesense-ai"
+  },
+  "engines": { "vscode": "^1.90.0" },
+  "categories": ["Linters", "Other", "Machine Learning"],
+  "keywords": ["ai", "code review", "bug detection", "refactor", "groq", "llm", "security", "static analysis"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "codesense.reviewFile", "title": "Review Current File", "category": "CodeSense AI", "icon": "$(sparkle)" },
+      { "command": "codesense.reviewSelection", "title": "Review Selected Code", "category": "CodeSense AI", "icon": "$(search)" },
+      { "command": "codesense.openDiff", "title": "Open AI Refactored Diff", "category": "CodeSense AI", "icon": "$(diff)" },
+      { "command": "codesense.copyRefactored", "title": "Copy Refactored Code", "category": "CodeSense AI", "icon": "$(copy)" },
+      { "command": "codesense.applyRefactored", "title": "Apply Refactored Code to File", "category": "CodeSense AI", "icon": "$(check)" },
+      { "command": "codesense.openPanel", "title": "Open Review Panel", "category": "CodeSense AI", "icon": "$(code)" },
+      { "command": "codesense.login", "title": "Sign In", "category": "CodeSense AI", "icon": "$(sign-in)" },
+      { "command": "codesense.logout", "title": "Sign Out", "category": "CodeSense AI", "icon": "$(sign-out)" },
+      { "command": "codesense.clearHistory", "title": "Clear Review History", "category": "CodeSense AI", "icon": "$(trash)" },
+      { "command": "codesense.clearDiagnostics", "title": "Clear Inline Diagnostics", "category": "CodeSense AI", "icon": "$(clear-all)" },
+      { "command": "codesense.openSettings", "title": "Open Settings", "category": "CodeSense AI", "icon": "$(settings-gear)" }
+    ],
+    "menus": {
+      "editor/context": [
+        { "command": "codesense.reviewSelection", "when": "editorHasSelection", "group": "codesense@1" },
+        { "command": "codesense.reviewFile", "group": "codesense@2" },
+        { "command": "codesense.openDiff", "when": "editorIsOpen", "group": "codesense@3" }
+      ],
+      "editor/title": [
+        { "command": "codesense.reviewFile", "group": "navigation@1", "when": "editorIsOpen" },
+        { "command": "codesense.openDiff", "group": "navigation@2", "when": "editorIsOpen" }
+      ],
+      "view/title": [
+        { "command": "codesense.clearHistory", "when": "view == codesense.history", "group": "navigation" }
+      ],
+      "commandPalette": [
+        { "command": "codesense.reviewFile" },
+        { "command": "codesense.reviewSelection" },
+        { "command": "codesense.openDiff" },
+        { "command": "codesense.copyRefactored" },
+        { "command": "codesense.applyRefactored" },
+        { "command": "codesense.login" },
+        { "command": "codesense.logout" },
+        { "command": "codesense.clearHistory" },
+        { "command": "codesense.clearDiagnostics" },
+        { "command": "codesense.openSettings" }
+      ]
+    },
+    "keybindings": [
+      { "command": "codesense.reviewFile", "key": "ctrl+shift+r", "mac": "cmd+shift+r", "when": "editorTextFocus" },
+      { "command": "codesense.reviewSelection", "key": "ctrl+shift+s", "mac": "cmd+shift+s", "when": "editorHasSelection" },
+      { "command": "codesense.openDiff", "key": "ctrl+shift+d", "mac": "cmd+shift+d", "when": "editorTextFocus" },
+      { "command": "codesense.copyRefactored", "key": "ctrl+shift+c", "mac": "cmd+shift+c", "when": "editorTextFocus" }
+    ],
+    "configuration": {
+      "title": "CodeSense AI",
+      "properties": {
+        "codesense.apiUrl": {
+          "type": "string",
+          "default": "http://localhost:3000",
+          "description": "CodeSense AI API base URL (your deployed Next.js app URL)"
+        },
+        "codesense.autoReviewOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically review code when a file is saved"
+        },
+        "codesense.showInlineDecorations": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show inline issue diagnostics in the editor gutter"
+        },
+        "codesense.showCodeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show CodeLens actions above file content"
+        },
+        "codesense.maxHistoryItems": {
+          "type": "number",
+          "default": 50,
+          "minimum": 1,
+          "maximum": 200,
+          "description": "Maximum number of review history items to retain"
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codesense",
+          "title": "CodeSense AI",
+          "icon": "assets/icon-mono.svg"
+        }
+      ]
+    },
+    "views": {
+      "codesense": [
+        {
+          "type": "webview",
+          "id": "codesense.panel",
+          "name": "Code Review",
+          "icon": "assets/icon-mono.svg"
+        },
+        {
+          "id": "codesense.history",
+          "name": "Review History",
+          "icon": "$(history)"
+        }
+      ]
+    },
+    "walkthroughs": [
+      {
+        "id": "codesense.gettingStarted",
+        "title": "Get Started with CodeSense AI",
+        "description": "Set up AI-powered code review in your workspace.",
+        "steps": [
+          {
+            "id": "codesense.step.signin",
+            "title": "Sign In",
+            "description": "Sign in to your CodeSense AI account.\n[Sign In](command:codesense.login)",
+            "media": { "markdown": "assets/walkthrough/signin.md" }
+          },
+          {
+            "id": "codesense.step.review",
+            "title": "Review Your First File",
+            "description": "Open any code file and press **Ctrl+Shift+R** to analyze it.\n[Review Current File](command:codesense.reviewFile)",
+            "media": { "markdown": "assets/walkthrough/review.md" }
+          },
+          {
+            "id": "codesense.step.diff",
+            "title": "View AI Refactored Diff",
+            "description": "After a review, press **Ctrl+Shift+D** to see the AI-refactored version.\n[Open Diff](command:codesense.openDiff)",
+            "media": { "markdown": "assets/walkthrough/diff.md" }
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "axios": "^1.7.7"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.90.0",
+    "@types/node": "^22.5.5",
+    "typescript": "^5.6.2",
+    "@vscode/vsce": "^3.1.0",
+    "eslint": "^8.57.0",
+    "@typescript-eslint/eslint-plugin": "^8.5.0",
+    "@typescript-eslint/parser": "^8.5.0"
+  }
+}

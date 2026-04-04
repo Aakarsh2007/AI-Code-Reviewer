@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Next.js type-check & lint ──────────────────────────────────────────────
+  web:
+    name: Web (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run type-check
+      - run: npm run lint
+
+  # ── VS Code Extension compile ──────────────────────────────────────────────
+  extension:
+    name: VS Code Extension
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vscode-extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: vscode-extension/package-lock.json
+      - run: npm ci
+      - run: npm run compile
+      - run: npm run lint
+
+  # ── Python AI service ──────────────────────────────────────────────────────
+  ai-service:
+    name: AI Service (Python)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m py_compile main.py app/config.py app/models.py app/auth.py app/database.py
+        name: Syntax check
+
+  # ── Docker build check ─────────────────────────────────────────────────────
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build AI service image
+        run: docker build -t codesense-ai-service ./ai-service
+      - name: Build web image
+        run: |
+          cd web
+          echo "MONGO_URI=mongodb://localhost/test" > .env.local
+          echo "REDIS_URI=redis://localhost:6379" >> .env.local
+          echo "JWT_SECRET=ci_test_secret_32_chars_minimum_x" >> .env.local
+          echo "AI_SERVICE_URL=http://localhost:8000" >> .env.local
+          echo "EMAIL_USER=test@test.com" >> .env.local
+          echo "EMAIL_PASS=testpass" >> .env.local
