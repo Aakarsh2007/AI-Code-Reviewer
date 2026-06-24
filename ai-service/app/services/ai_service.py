@@ -1,12 +1,7 @@
-"""
-Groq AI service — generates structured code reviews.
-Uses llama-3.3-70b-versatile with strict JSON output.
-"""
-
 import json
 import logging
 import time
-from groq import AsyncGroq
+from groq import AsyncGroq, APIError, APIConnectionError, RateLimitError, AuthenticationError
 from app.config import settings
 from app.models import ReviewResponse
 
@@ -56,22 +51,39 @@ def _get_client() -> AsyncGroq:
 async def generate_code_review(code: str, language: str) -> tuple[ReviewResponse, float]:
     """
     Returns (ReviewResponse, duration_ms).
-    Raises ValueError on parse failure.
+    Raises ValueError on parse failure or API communication failure.
     """
     client = _get_client()
     prompt = f"Review the following {language} code:\n\n```{language}\n{code}\n```"
 
     start = time.perf_counter()
-    completion = await client.chat.completions.create(
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ],
-        model="llama-3.3-70b-versatile",
-        temperature=0.15,
-        max_tokens=4096,
-        response_format={"type": "json_object"},
-    )
+    try:
+        completion = await client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            model="llama-3.3-70b-versatile",
+            temperature=0.15,
+            max_tokens=4096,
+            response_format={"type": "json_object"},
+        )
+    except AuthenticationError as exc:
+        logger.error("Groq API authentication error: %s", exc)
+        raise ValueError("AI service authentication failed") from exc
+    except RateLimitError as exc:
+        logger.warning("Groq API rate limit hit: %s", exc)
+        raise ValueError("AI service rate limit exceeded") from exc
+    except APIConnectionError as exc:
+        logger.error("Groq API connection error: %s", exc)
+        raise ValueError("AI service connection failed") from exc
+    except APIError as exc:
+        logger.error("Groq API error: %s (status_code: %s, response: %s)", exc, exc.status_code, exc.response)
+        raise ValueError(f"AI service API error: {exc.status_code}") from exc
+    except Exception as exc: # Catch any other unexpected exceptions from the API call
+        logger.error("An unexpected error occurred during Groq API call: %s", exc)
+        raise ValueError("An unexpected error occurred with AI service") from exc
+
     duration_ms = (time.perf_counter() - start) * 1000
 
     raw = completion.choices[0].message.content
